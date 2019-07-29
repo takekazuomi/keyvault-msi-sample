@@ -5,6 +5,8 @@ using Microsoft.Azure.Services.AppAuthentication;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.AzureKeyVault;
 
+// https://docs.microsoft.com/en-us/aspnet/core/security/key-vault-configuration?view=aspnetcore-3.0#use-managed-identities-for-azure-resources
+
 namespace kvmsi
 {
     public class Program
@@ -14,7 +16,6 @@ namespace kvmsi
             CreateWebHostBuilder(args).Build().Run();
         }
 
-        // https://docs.microsoft.com/en-us/aspnet/core/security/key-vault-configuration?view=aspnetcore-3.0#use-managed-identities-for-azure-resources
         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
             WebHost.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration((context, config) =>
