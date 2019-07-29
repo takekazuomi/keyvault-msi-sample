@@ -1,0 +1,122 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "webSiteName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Web App."
+            }
+        },
+        "keyVaultName": {
+            "type": "string",
+            "metadata": {
+                "description": "Key Vault to be created. Web site will be granted access to this Key Vault."
+            }
+        },
+        "keyVaultSecret": {
+            "type": "string",
+            "metadata": {
+                "description": "Secret to add to the Key Vault"
+            }
+        }
+    },
+    "variables": {
+        "hostingPlanName": "[concat('hostingplan', uniqueString(resourceGroup().id))]",
+        "identityResourceId": "[concat(resourceId('Microsoft.Web/sites', parameters('webSiteName')),'/providers/Microsoft.ManagedIdentity/Identities/default')]",
+        "skuName": "F1"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2016-09-01",
+            "name": "[variables('hostingPlanName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "usage": "kvmsi"
+            },
+            "sku": {
+                "name": "[variables('skuName')]",
+                "capacity": 1
+            },
+            "properties": {
+                "name": "[variables('hostingPlanName')]"
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2016-08-01",
+            "name": "[parameters('webSiteName')]",
+            "location": "[resourceGroup().location]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "dependsOn": [
+                "[variables('hostingPlanName')]"
+            ],
+            "tags": {
+                "usage": "kvmsi"
+            },
+            "properties": {
+                "name": "[parameters('webSiteName')]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "KeyVaultUrl",
+                            "value": "[concat('https://', parameters('keyVaultName'), '.vault.azure.net/')]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "name": "[parameters('keyVaultName')]",
+            "apiVersion": "2016-10-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "usage": "kvmsi"
+            },
+            "properties": {
+                "sku": {
+                    "family": "A",
+                    "name": "Standard"
+                },
+                "tenantId": "[reference(variables('identityResourceId'), '2015-08-31-PREVIEW').tenantId]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[reference(variables('identityResourceId'), '2015-08-31-PREVIEW').tenantId]",
+                        "objectId": "[reference(variables('identityResourceId'), '2015-08-31-PREVIEW').principalId]",
+                        "permissions": {
+                            "secrets": [
+                                "get",
+                                "list"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Web/sites/', parameters('webSiteName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', 'secret')]",
+            "apiVersion": "2016-10-01",
+            "properties": {
+                "value": "[parameters('keyVaultSecret')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.KeyVault/vaults/', parameters('keyVaultName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "appServicePrincipalId": {
+            "type": "string",
+            "value": "[reference(variables('identityResourceId'), '2015-08-31-PREVIEW').principalId]"
+        }
+    }
+}
